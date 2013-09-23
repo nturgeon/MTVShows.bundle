@@ -36,13 +36,13 @@ def Start():
 def MainMenu():
   oc = ObjectContainer()
   oc.add(DirectoryObject(key=Callback(MTVShows, title='MTV Shows'), title='MTV Shows')) 
-  oc.add(DirectoryObject(key=Callback(MTVVideos, title='MTV Videos'), title='VH1 Videos')) 
+  oc.add(DirectoryObject(key=Callback(MTVVideos, title='MTV Videos'), title='MTV Videos')) 
   #To get the InputDirectoryObject to produce a search input in Roku, prompt value must start with the word "search"
   oc.add(InputDirectoryObject(key=Callback(SearchVideos, title='Search MTV Videos'), title='Search MTV Videos', summary="Click here to search videos", prompt="Search for the videos you would like to find"))
   return oc
 #####################################################################################
 # For MTV main sections of Popular, Specials, and All Shows
-@route(PREFIX + '/mtvmain')
+@route(PREFIX + '/mtvshows')
 def MTVShows(title):
   oc = ObjectContainer(title2=title)
   oc.add(DirectoryObject(key=Callback(ProduceShows, title='MTV Popular Shows', sort_type='shows'), title='MTV Popular Shows')) 
@@ -51,11 +51,11 @@ def MTVShows(title):
   return oc
 #####################################################################################
 # For MTV main sections of Videos
-@route(PREFIX + '/mtvmain')
+@route(PREFIX + '/mtvvideos')
 def MTVVideos(title):
   oc = ObjectContainer(title2=title)
-  oc.add(DirectoryObject(key=Callback(VideoPage, title='MTV Latest Full Episodes', url='http://www.mtv.com/videos/home.jhtml'), title='MTV Latest Full Episodes', thumb=R(MTV_ICON))) 
-  oc.add(DirectoryObject(key=Callback(MostPopularMain, title='MTV Most Popular Videos'), title='MTV Most Popular Videos', thumb=R(MTV_ICON))) 
+  oc.add(DirectoryObject(key=Callback(VideoPage, title='MTV Latest Full Episodes', url='http://www.mtv.com/videos/home.jhtml'), title='MTV Latest Full Episodes')) 
+  oc.add(DirectoryObject(key=Callback(MostPopularMain, title='MTV Most Popular Videos'), title='MTV Most Popular Videos')) 
   return oc
 ####################################################################################################
 # This handles most popular that have a carousel (MTV)
@@ -88,7 +88,7 @@ def ProduceShows(title, sort_type):
   if sort_type == 'shows':
     xpath_code = '//li[@inde="24.0"]/a'
   else:
-    xpath_code = '//ul[@ind="32"]/li/a'
+    xpath_code = '//ul[@ind="35"]/li/a'
 
   for video in data.xpath('%s' %xpath_code):
     url = video.xpath('.//@href')[0]
@@ -110,11 +110,12 @@ def ProduceShows(title, sort_type):
         pass
 
     else:
-      if 'series.jhtml' in url:
-        video_url = url.replace('series.jhtml', 'video.jhtml')
-        oc.add(DirectoryObject(key=Callback(SpecialSections, title=title, url=video_url, thumb=R(ICON)), title=title, thumb=Callback(GetThumb, url=video_url)))
-      else:
-        oc.add(DirectoryObject(key=Callback(SectionYears, title=title, url=url, thumb=R(ICON)), title=title, thumb=Callback(GetThumb, url=url)))
+      if 'mtv' in url:
+        if 'series.jhtml' in url:
+          video_url = url.replace('series.jhtml', 'video.jhtml')
+          oc.add(DirectoryObject(key=Callback(SpecialSections, title=title, url=video_url, thumb=R(ICON)), title=title, thumb=Callback(GetThumb, url=video_url)))
+        else:
+          oc.add(DirectoryObject(key=Callback(SectionYears, title=title, url=url, thumb=R(ICON)), title=title, thumb=Callback(GetThumb, url=url)))
 
   oc.objects.sort(key = lambda obj: obj.title)
 
