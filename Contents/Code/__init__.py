@@ -1,4 +1,5 @@
-# NEED TO SEE IF WE CAN CUT DOWN SPECIALS SECTION AND EPISODE AND SEASON FIND
+# MARQUEES SEEM TO BE THE ONLY PLACE WITH VIDEO PLAYLIST AND USES '#id='
+# VIDEOS IN THE TABLE LIST DO NOT APPEAR TO BE PLAYLIST AS WELL AS SEARCHES AND LATEST AND MOST POPULAR VIDEOS PULLS
 TITLE = 'MTV Shows'
 PREFIX = '/video/mtvshows'
 ART = 'art-default.jpg'
@@ -54,8 +55,6 @@ def MTVShows(title):
 @route(PREFIX + '/mtvvideos')
 def MTVVideos(title):
   oc = ObjectContainer(title2=title)
-  # Removed this for now since this uses a different type of carousel
-  #oc.add(DirectoryObject(key=Callback(ProduceMarquee, title='Featured Videos', url=SHOWS), title='Featured Videos'))
   oc.add(DirectoryObject(key=Callback(VideoPage, title='MTV Latest Full Episodes', url='http://www.mtv.com/videos/home.jhtml'), title='MTV Latest Full Episodes')) 
   oc.add(DirectoryObject(key=Callback(MostPopularMain, title='MTV Most Popular Videos'), title='MTV Most Popular Videos')) 
   return oc
@@ -105,7 +104,8 @@ def ProduceShows(title, sort_type):
       # Would prefer to use a content check for Other Seasons since some shows do not have /season in url but it slows down the pull
       # WHEN PULLING MTV SHOWS FROM SHOW MENU JERSEY SHORE, THE HILLS, AND LAGUNA BEACH DO NOT HAVE SEASON IN THEM AND RR/RW CHALLENGE AND REAL WORLD HAVE A DIFFERENT NAME FOR EACH SEASON AND DO NOT HAVE /SEASON_ IN URL
         if '/season_' in url or 'rwrr_challenge/' in url or '/real_world/' in url or '/jersey_shore/' in url or '/the_hills/' in url or '/laguns_beach/' in url:
-          oc.add(DirectoryObject(key=Callback(ShowSeasons, title=title, url=url), title=title, thumb=Callback(GetThumb, url=url)))
+          #oc.add(DirectoryObject(key=Callback(ShowSeasons, title=title, url=url), title=title, thumb=Callback(GetThumb, url=url)))
+          oc.add(DirectoryObject(key=Callback(ShowCreateSeasons, title=title, url=url), title=title, thumb=Callback(GetThumb, url=url)))
         else:
           oc.add(DirectoryObject(key=Callback(ShowCreateSeasons, title=title, url=url), title=title, thumb=Callback(GetThumb, url=url)))
       else:
@@ -189,52 +189,17 @@ def ShowsAll(title, page=1):
   else:
     return oc
 #######################################################################################
-# This section handles seasons that have a different url for each season
-@route(PREFIX + '/showseasons')
-def ShowSeasons(title, url):
-
-  oc = ObjectContainer(title2=title)
-  local_url = url.replace('series', 'seasons')
-  if not local_url.startswith('http://'):
-    local_url = BASE_URL + local_url
-  #THIS IS A UNIQUE DATA PULL
-  data = HTML.ElementFromURL(local_url)
-  for video in data.xpath('//div[1]/ol/li/div[contains(@class,"title")]/a'):
-    url = video.xpath('.//@href')[0]
-    url = BASE_URL + url
-    # RR/RW Challenge and Real World do not have season numbers, so this checks for those shows
-    if '/season_' in url:
-      season = url.split('season_')[1]
-      season = int(season.replace('/series.jhtml', ''))
-    else:
-      season = 1
-    title = video.xpath('./img//@alt')[0]
-    if '&rsaquo;' in title:
-      title = title.replace('&rsaquo;', '')
-    thumb = video.xpath('./img//@src')[0]
-    if not thumb.startswith('http://'):
-      thumb = BASE_URL + thumb
-
-    oc.add(DirectoryObject(key=Callback(ShowSections, title=title, thumb=thumb, url=url, season=int(season)), title = title, thumb = Resource.ContentsOfURLWithFallback(url=thumb, fallback=ICON)))
-
-  #oc.objects.sort(key = lambda obj: obj.title, reverse=True)
-  if len(oc) < 1:
-    Log ('still no value for season objects')
-    return ObjectContainer(header="Empty", message="There are no seasons to list right now.")
-  else:
-    return oc
-#######################################################################################
 # This section handles shows that do not have a separate page for each season
 # Some shows (mostly MTV) do not have an other season link so this checks for season numbers in the main video page
-@route(PREFIX + '/showcreateseasonsnew')
-def ShowCreateSeasonsNew(title, url):
+@route(PREFIX + '/showcreateseasons')
+def ShowCreateSeasons(title, url):
 
   oc = ObjectContainer(title2=title)
   season_list = []
   local_url = url.replace('series', 'video')
   # THIS DATA PULL IS ALSO USED FOR GETTHUMBS FUNCTION AND FOR SHOWVIDEO FUNCTION WHEN MISC VIDEOS ARE SENT
   page = HTML.ElementFromURL(local_url)
-  section_nav = data.xpath('//ul/li[@class=" section-nav"]')
+  section_nav = page.xpath('//ul/li[@class=" section-nav"]')
   if 'Other Seasons' in url:
     local_url = url.replace('series', 'seasons')
     #THIS IS A UNIQUE DATA PULL
@@ -296,81 +261,29 @@ def ShowCreateSeasonsNew(title, url):
   else:
     return oc
 #######################################################################################
-# This section handles shows that do not have a separate page for each season
-# Some shows (mostly MTV) do not have an other season link so this checks for season numbers in the main video page
-@route(PREFIX + '/showcreateseasons')
-def ShowCreateSeasons(title, url):
-
-  oc = ObjectContainer(title2=title)
-  season_list = []
-  local_url = url.replace('series', 'video')
-          
-  # THIS DATA PULL IS ALSO USED FOR GETTHUMBS FUNCTION AND FOR SHOWVIDEO FUNCTION WHEN MISC VIDEOS ARE SENT
-  data = HTML.ElementFromURL(local_url)
-  # This function doesn't have a thumb for most shows except those coming from All Shows function, so just pulling from above video type list
-  try:
-    thumb = data.xpath('//ol[contains(@class, "photo-alt")]/li/div/a/img//@src')[0]
-    if not thumb.startswith('http://'):
-      thumb = BASE_URL + thumb
-  except:
-    thumb=R(ICON)
-  for video in data.xpath('//ol/li[@itemtype="http://schema.org/VideoObject"]'):
-    other_info = video.xpath('.//@maintitle')[0]
-    episode = video.xpath('./ul/li[@class="list-ep"]//text()')[0]
-    if episode == '--' or episode == 'Special':
-      episode = EpisodeFind(other_info)
-    else:
-      episode = int(episode)
-    season = SeasonFind(episode, other_info)
-    if season not in season_list:
-      season_list.append(season)
-    else:
-      pass
-    
-  # Need to sort the list
-  season_list = sorted(season_list)
-  for season_num in season_list:
-  # If there is a season, the title is Season Number, if the season is 0, the title is Misc Videos
-    if season_num > 0:
-      oc.add(DirectoryObject(key=Callback(ShowSections, title='Season %s' %season_num, thumb=thumb, url=url, season=season_num), title = 'Season %s' %season_num, thumb = thumb))
-    else:
-      oc.add(DirectoryObject(key=Callback(ShowVideos, title='Other Videos', section_id='', url=url, season=season_num), title='Other Videos', thumb = thumb))
-
-  oc.objects.sort(key = lambda obj: obj.title, reverse=True)
-  if len(oc) < 1:
-    # Here we can put an exception for the old video pages with a table format to send it to ShowVideo with season=1
-    # DO ANY MTV SHOWS HAVE OLD TABLE FORMAT?
-    oc.add(DirectoryObject(key=Callback(ShowVideos, title=title, section_id=' ', url=url, season=1), title=title, thumb = thumb))
-    return oc
-    #Log ('still no value for create season objects. Sending on to video function for check')
-  else:
-    return oc
-#######################################################################################
 # This section separates the MTV specials with archives into years.
 # Chose to start at 2005 since that is the year that first seems to produce videos
 @route(PREFIX + '/sectionyears')
 def SectionYears(title, url):
 
   oc = ObjectContainer(title2=title)
-  year = str(Datetime.Now().year)
   if 'vma' in url:
-    local_url = url + 'video.jhtml'
-    url = url + 'archive/'
+    local_url = url + 'archive/'
   else:
-    local_url = url + year + '/' + 'video.jhtml'
-  if year not in title:
-    title = year + ' ' + title
+    local_url = url
   # Need to pull thumbs here and using local url used for a pull in the other functions
   # THIS DATA PULL IS ALSO USED BY THE GETIDS AND PAGINATION FUNCTION
   data = HTML.ElementFromURL(local_url)
-  thumb=data.xpath("//head//meta[@name='thumbnail']//@content")[0]
+  titles = data.xpath('//ul[@class="section-nav"]/li/a/text()')
+  position = len(titles) -1
+  latest_url = BASE_URL + data.xpath('//ul[@class="section-nav"]/li/a//@href')[position] + 'video.jhtml'
+  thumb=HTML.ElementFromURL(latest_url).xpath("//head//meta[@name='thumbnail']//@content")[0]
   if not thumb.startswith('http://'):
     thumb = BASE_URL + thumb
-  oc.add(DirectoryObject(key=Callback(SpecialSections, title=title, url=local_url, thumb=thumb), title=title, thumb=thumb))
+  current_title = titles[position]
+  oc.add(DirectoryObject(key=Callback(SpecialSections, title=current_title, url=latest_url, thumb=thumb), title=current_title, thumb=thumb))
   
   # THIS DATA PULL IS ALSO USED BY THE GETIDS AND PAGINATION FUNCTION
-  #data = HTML.ElementFromURL(url)
-  data = HTML.ElementFromURL(url)
   for video in data.xpath('//div[@id="sidebar"]/ol/li'):
     title = video.xpath('./p/b/a//text()')[0]
     year = int(title.split()[0])
@@ -380,6 +293,9 @@ def SectionYears(title, url):
       # A few do not put slash after the year so it causes errors
       if not url.endswith('/'):
         url = url + '/'
+      # check to make sure it is not the current year
+      if title==current_title:
+        url = url + 'video.jhtml'
       oc.add(DirectoryObject(key=Callback(SpecialSections, title=title, url=url, thumb=thumb), title=title, thumb=thumb)) 
 
   #oc.objects.sort(key = lambda obj: obj.title, reverse=True)
@@ -391,35 +307,70 @@ def SectionYears(title, url):
 #######################################################################################
 # This section handles specials that do not have a traditional show structure. We use ID numbers to produce sections for these specials
 # then use those IDS with the MTV_PLAYLIST to get the playlist
-# ALL SHOWS THAT ARE PRODUCED ARE WORKING NOW, BUT COULD LOOK AT ADDING MTV UNPLUGGED
+# ALL SHOWS THAT ARE PRODUCED ARE WORKING NOW, BUT COULD LOOK AT ADDING VH1 STORYTELLERS AND CTITICS TV AWARDS
 @route(PREFIX + '/specialsections')
 def SpecialSections(title, thumb, url):
 
   oc = ObjectContainer(title2=title)
-  xpath_code = '//li[@itemtype="http://schema.org/VideoObject"]'
-  # this line puts alternative code for archived specials and avoids latest specials that use xpath code above
-  # THE ISSUE IS THAT SOME OLDER MTV AWARDS HAVE ONE COLUMN INSTEAD OF TWO SO XPATH IS NOT CONSISTENT AND REQURES PULLING ALL LINKS ON PAGE
-  if '.jhtml' not in url:
-    xpath_code = '//ol/li/div[@class="thumb"]/a'
-  section_list = GetIds(url, xpath_code)
-
-  # Since this is just pulling thumb for one show, it should not slow down function
   if not thumb.startswith('http://'):
     thumb = Callback(GetThumb, url=url)
-  else:
+  # Check to see if there is a second pages here
+  pagination = [url]
+  try:
+    data = HTML.ElementFromURL(url)
+    next_page = BASE_URL + data.xpath('//div[@class="pagintation"]/a[@class="page-next"]//@href')[0]
+    pagination.append(next_page)
+  except:
     pass
-  for ids in section_list:
-    #it appears that is a little faster to pull the title from the Playlist than the MRSS and can use VideoPage function to produce videos
-    # THIS DATA PULL IS ALSO USED BY THE SPECIAL VIDEOS FUNCTION
-    id_url = MTV_PLAYLIST %ids
-    data = HTML.ElementFromURL(id_url)
-    try:
-      title = data.xpath('//h3/span/text()')[0]
-      oc.add(DirectoryObject(key=Callback(VideoPage, title=title, url=id_url), title=title, thumb=thumb))
-    except:
-      pass
+  Log('the value of pagination is %s' %pagination)
+  section_list =[]
+  for page in pagination:
+    data = HTML.ElementFromURL(page)
+    if '/ontv/' in url:
+      xpath_code = '//div[@class="group-ab"]/div/div/ol/li'
+      # this line puts alternative code for archived specials and avoids latest specials that use xpath code above
+      # Since some older awards have either one or two columns we check code first to determine correct xpath code
+      if '.jhtml' not in url:
+        try:
+          two_col = data.xpath('//div[@id="generic2"]/div/div/div/@class')[0]
+          xpath_code = '//div[@id="generic2"]/div/div/div/ol/li'
+        except:
+          xpath_code = '//div[@id="generic2"]/div/ol/li'
+    else:
+      xpath_code = '//li[@itemtype="http://schema.org/VideoObject"]'
+    #Log('the value of xpath_code is %s' %xpath_code)
+    for ids in data.xpath('%s' %xpath_code):
+      try:
+        # This below handles those with series.jhtml that have a mainuri
+        title = ids.xpath('.//@maintitle')[0].strip()
+        # the id in this url is in &id=
+        vid_url = ids.xpath('.//@mainurl')[0]
+      except:
+        # This below handles all others
+        # THIS WILL PICK UP THE CORRECT TITLE but have two different locations for them
+        try:
+          title = ids.xpath('./div/meta[@itemprop="name"]//@content')[0]
+        except:
+          title = ids.xpath('./div/a/img/@alt')[1]
+        #title = ''
+        # the id in this url is in ?id=
+        vid_url = ids.xpath('./div/a//@href')[0]
+      if '?id=' in vid_url or '&id=' in vid_url:
+        vid_id = vid_url.split('id=')[1]
+        if vid_id not in section_list:
+          vid_url = MTV_PLAYLIST %vid_id
+          #if not title:
+            #title = HTML.ElementFromURL(vid_url).xpath('//h3/span/text()')[0]
+          section_list.append(vid_id)
+          oc.add(DirectoryObject(key=Callback(VideoPage, title=title, url=vid_url), title=title, thumb=thumb))
+      else:
+        pass
 
   #oc.objects.sort(key = lambda obj: obj.title)
+  if len(oc) < 1:
+    oc.add(DirectoryObject(key=Callback(ProduceMarquee, title='Featured Videos', url=url), title='Featured Videos', thumb=thumb))
+    Log ('still no value for objects')
+    
   if len(oc) < 1:
     Log ('still no value for objects')
     return ObjectContainer(header="Empty", message="There are no special videos to list right now.")
@@ -623,38 +574,6 @@ def VideoPage(url, title, page=1):
     return ObjectContainer(header="Sorry!", message="No video available in this category.")
   else:
     return oc
-#################################################################################################################
-# This function creates a list of the unique ids for specials pages
-@route(PREFIX + '/getids')
-def GetIds(url, xpath_code):
-
-  section_list = []
-  data = HTML.ElementFromURL(url)
-  # The best place to get the ids are from the uri for the links so we check for that first
-  for ids in data.xpath('%s' %xpath_code):
-    try:
-      id_num = ids.xpath('.//@mainuri')[0]
-      id_num = id_num.split('videolist:mtv.com:')[1]
-    except:
-      try:
-        id_num = ids.xpath('./div/a//@href')[0]
-        # This below handles series that do not have a mainuri and archived award shows
-      except:
-        id_num = ids.xpath('.//@href')[0]
-      if '#id=' in id_num or '?id=' in id_num:
-        try:
-          id_num = id_num.split('#id=')[1]
-        except:
-          id_num = id_num.split('?id=')[1]
-        if 'vid=' in id_num:
-          id_num = id_num.split('&vid')[0]
-    # make sure it is a 7 digit number could even add int check
-    if len(id_num) == 7:
-      if id_num not in section_list:
-        section_list.append(id_num)
-    else:
-      pass
-  return section_list
 ###########################################################################################
 # This function is used in CreateShowSeasons and ShowVideo to pull episode numbers for shows that have '--' in epside field
 @route(PREFIX + '/episodefind')
@@ -751,12 +670,19 @@ def ProduceMarquee(title, url):
     if '/video.jhtml' in vid_url:
       oc.add(DirectoryObject(key=Callback(ShowVideos, title=title, section_id='', url=url, season=None), title=title, thumb=thumb))
     elif URLTest(vid_url):
-      oc.add(VideoClipObject(
-        url = vid_url, 
-        title = title, 
-        thumb = thumb,
-        summary = summary
-        ))
+      # if the video ends with #id, it is a playlist so only the first part will play, so need to change url to playlist url and send it to videopage function
+      if '#id=' in vid_url:
+        vid_id = vid_url.split('#id=')[1]
+        vid_url = PLAYLIST %vid_id
+        # send to videopage function
+        oc.add(DirectoryObject(key=Callback(VideoPage, title=title, url=vid_url), title=title, thumb=thumb))
+      else:
+        oc.add(VideoClipObject(
+          url = vid_url, 
+          title = title, 
+          thumb = thumb,
+          summary = summary
+          ))
     else:
       pass
 
