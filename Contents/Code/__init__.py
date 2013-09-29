@@ -673,7 +673,7 @@ def ProduceMarquee(title, url):
       # if the video ends with #id, it is a playlist so only the first part will play, so need to change url to playlist url and send it to videopage function
       if '#id=' in vid_url:
         vid_id = vid_url.split('#id=')[1]
-        vid_url = PLAYLIST %vid_id
+        vid_url = MTV_PLAYLIST %vid_id
         # send to videopage function
         oc.add(DirectoryObject(key=Callback(VideoPage, title=title, url=vid_url), title=title, thumb=thumb))
       else:
