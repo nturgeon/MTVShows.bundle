@@ -147,11 +147,8 @@ def ShowsAll(title, page=1):
 
     if '/shows/' in url:
       # Would prefer to use a content check for Other Seasons since some shows do not have /season in url but it slows down the pull
-      # 16 and Pregnant does not have a listing here for each season so sending ti to ShowSeason function
-      if '/16_and_pregnant/' in url:
-        oc.add(DirectoryObject(key=Callback(ShowSeasons, title=title, thumb=thumb, url=url), title=title, thumb=thumb))
       # The rest of the shows are listed by individual season. But RR/RW Challenge and Real World have different names for season, they do not have a /season in url
-      elif '/season_' in url or 'rwrr_challenge/' in url or '/real_world/' in url:
+      if '/season_' in url or 'rwrr_challenge/' in url or '/real_world/' in url:
         if '/season_' in url:
           season = url.split('/season_')[1]
           season = season.split('/')[0]
