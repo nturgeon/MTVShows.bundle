@@ -163,7 +163,10 @@ def ShowsAll(title, page=1):
           url = url + 'archive/'
         oc.add(DirectoryObject(key=Callback(SectionYears, title=title, url=url), title=title, thumb=thumb))
       else:
-        url = url + 'video.jhtml'
+        if '/vma/2012/' in url:
+          url = url
+        else:
+          url = url + 'video.jhtml'
         oc.add(DirectoryObject(key=Callback(SpecialSections, title=title, thumb=thumb, url=url), title = title, thumb = thumb))
     else:
       pass
