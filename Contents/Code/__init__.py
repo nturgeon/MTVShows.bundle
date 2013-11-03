@@ -5,7 +5,6 @@ PREFIX = '/video/mtvshows'
 ART = 'art-default.jpg'
 ICON = 'icon-default.png'
 
-SEARCH_URL = 'http://www.mtv.com/search/video/'
 BASE_URL = 'http://www.mtv.com'
 SHOWS = 'http://www.mtv.com/ontv'
 MTV_SHOWS_ALL = 'http://www.mtv.com/ontv/all/'
@@ -39,7 +38,7 @@ def MainMenu():
   oc.add(DirectoryObject(key=Callback(MTVShows, title='MTV Shows'), title='MTV Shows')) 
   oc.add(DirectoryObject(key=Callback(MTVVideos, title='MTV Videos'), title='MTV Videos')) 
   #To get the InputDirectoryObject to produce a search input in Roku, prompt value must start with the word "search"
-  oc.add(InputDirectoryObject(key=Callback(SearchVideos, title='Search MTV Videos'), title='Search MTV Videos', summary="Click here to search videos", prompt="Search for the videos you would like to find"))
+  oc.add(SearchDirectoryObject(identifier="com.plexapp.plugins.mtvshows", title=L("Search MTV Videos"), prompt=L("Search for Videos")))
   return oc
 #####################################################################################
 # For MTV main sections of Popular, Specials, and All Shows
@@ -163,6 +162,8 @@ def ShowsAll(title, page=1):
           url = url + 'archive/'
         oc.add(DirectoryObject(key=Callback(SectionYears, title=title, url=url), title=title, thumb=thumb))
       else:
+        # NEED TO LOOK AT WHETHER THERE IS A BETTER WAY TO HANDLE THIS AND MAKE EXCEPTIONS FOR OLDER VERSUS LATEST AWARDS SHOW OR SPECIAL
+        # COULD POSSBILY USE year = str(Datetime.Now().year)
         if '/vma/2012/' in url:
           url = url
         else:
@@ -322,7 +323,7 @@ def SpecialSections(title, thumb, url):
     pagination.append(next_page)
   except:
     pass
-  Log('the value of pagination is %s' %pagination)
+  #Log('the value of pagination is %s' %pagination)
   section_list =[]
   for page in pagination:
     data = HTML.ElementFromURL(page)
@@ -450,72 +451,6 @@ def ShowVideos(title, section_id, url, season):
   if len(oc) < 1:
     Log ('still no value for objects')
     return ObjectContainer(header="Empty", message="There are no %s videos to list right now." %section_id)
-  else:
-    return oc
-#########################################################################################
-# This function is for pulling searches
-@route(PREFIX + '/searchvideos')
-def SearchVideos(title, query='', page_url=''):
-  oc = ObjectContainer(title2=title)
-  if query:
-    local_url = SEARCH_URL + '?q=' + String.Quote(query, usePlus = False)  + '&page=1'
-  else:
-    local_url = SEARCH_URL + page_url
-  data = HTML.ElementFromURL(local_url)
-  for item in data.xpath('//ul/li[contains(@class,"mtvn-video ")]'):
-    link = item.xpath('./div/a//@href')[0]
-    if 'mtviggy' in link:
-      continue
-    if not link.startswith('http://'):
-      link = BASE_URL + link
-    image = item.xpath('./div/a/span/img//@src')[0]
-    if not image.startswith('http://'):
-      image = BASE_URL + image
-    try:
-      video_title = item.xpath('./div/a/text()')[2].strip()
-    except:
-      video_title = item.xpath('./div/div/a/text()')[0]
-    if not video_title:
-      try:
-        video_title = item.xpath('./div/a/span/span/text()')[0]
-        video_title2 = item.xpath('./div/a/span/em/text()')[0]
-        video_title = video_title + ' ' + video_title2
-      except:
-        video_title = ''
-    try:
-      date = item.xpath('./p/span/em//text()')[0]
-      if date.startswith('Music'):
-        date = item.xpath('./p/span/em//text()')[1]
-    except:
-      date = ''
-    if 'hrs ago' in date:
-      try:
-        date = Datetime.Now()
-      except:
-        date = ''
-    else:
-      date = Datetime.ParseDate(date)
-
-    oc.add(VideoClipObject(url=link, title=video_title, originally_available_at=date, thumb=Resource.ContentsOfURLWithFallback(url=image, fallback=ICON)))
-  # This goes through all the pages of a search
-  # After first page, the Prev and Next have the same page_url, so have to check for
-  try:
-    page_type = data.xpath('//a[contains(@class,"pagination")]//text()')
-    x = len(page_type)-1
-    if 'Next' in page_type[x]:
-      page_url = data.xpath('//a[contains(@class,"pagination")]//@href')[x]
-      oc.add(NextPageObject(
-        key = Callback(SearchVideos, title = title, page_url = page_url), 
-        title = L("Next Page ...")))
-    else:
-      pass
-  except:
-    pass
-
-  #oc.objects.sort(key = lambda obj: obj.index, reverse=True)
-
-  if len(oc)==0:
-    return ObjectContainer(header="Sorry!", message="No video available in this category.")
   else:
     return oc
 ####################################################################################################
@@ -693,8 +628,6 @@ def ProduceMarquee(title, url):
     return oc
 ############################################################################################################################
 # This is to test if there is a Plex URL service for  given url.  
-# Seems to return some RSS feeds as not having a service when they do, so currently unused and needs more testing
-#       if URLTest(url) == "true":
 @route(PREFIX + '/urltest')
 def URLTest(url):
   url_good = ''
