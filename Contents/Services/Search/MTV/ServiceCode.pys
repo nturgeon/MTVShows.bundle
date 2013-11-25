@@ -1,5 +1,6 @@
 SEARCH_URL = 'http://www.mtv.com/search/video/'
 BASE_URL = 'http://www.mtv.com'
+RE_DATE  = Regex('Posted (.+?)[ .]')
 # SEARCHES DO NOT HAVE PLAYLIST  SO URLS DO NOT END WITH ID=
 
 ####################################################################################################
@@ -7,34 +8,22 @@ def Search(query):
     oc = ObjectContainer(title1='MTV', title2='Search Results')
     url = SEARCH_URL + '?q=' + String.Quote(query, usePlus = False)
     data = HTML.ElementFromURL(url)
-    for item in data.xpath('//ul/li[contains(@class,"mtvn-video ")]'):
-        link = item.xpath('./div/a//@href')[0]
-        if not link.startswith('http://'):
-            link = BASE_URL + link
-        image = item.xpath('./div/a/span/img//@src')[0]
+    for item in data.xpath('//ul[contains(@class,"mtvn-lst")]/li'):
+        link = item.xpath('.//a//@href')[0]
+        #if not link.startswith('http://'):
+            #link = BASE_URL + link
+        if not link.startswith('http://www.mtv.com'):
+            continue
+        image = item.xpath('.//img//@src')[0]
         if not image.startswith('http://'):
             image = BASE_URL + image
+        video_title = item.xpath('./div[contains(@class,"item-content")]//a/text()')[0]
+        summary = str(item.xpath('.//p[contains(@class,"mtvn-desc")]//text()'))
         try:
-            video_title = item.xpath('./div/a/text()')[2].strip()
-        except:
-            video_title = item.xpath('./div/div/a/text()')[0]
-        if not video_title:
-            try:
-                video_title = item.xpath('./div/a/span/span/text()')[0]
-                video_title2 = item.xpath('./div/a/span/em/text()')[0]
-                video_title = video_title + ' ' + video_title2
-            except:
-                video_title = ''
-        try:
-            date = item.xpath('./p/span/em//text()')[0]
-            if date.startswith('Music'):
-                date = item.xpath('./p/span/em//text()')[1]
-        except:
-            date = ''
-        if 'hrs ago' in date:
-            date = Datetime.Now()
-        else:
+            date = RE_DATE.search(summary).group(1)
             date = Datetime.ParseDate(date)
+        except:
+            date = None
 
         oc.add(VideoClipObject(url=link, title=video_title, originally_available_at=date, thumb=Resource.ContentsOfURLWithFallback(url=image)))
 

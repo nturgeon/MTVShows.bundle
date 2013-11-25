@@ -19,8 +19,8 @@ SPECIAL_ARCHIVES = [
   {'title'  : 'mtvU Woodie Awards',  'url'  : 'http://www.mtv.com/ontv/woodieawards/'}
 ]
 
-RE_SEASON_NEW  = Regex('.+(Season|Seas.) (\d{1,2}).+')
-RE_EPISODE_NEW  = Regex('.+(Episode|Ep.) (\d{1,3})')
+RE_SEASON  = Regex('.+(Season|Seas.) (\d{1,2}).+')
+RE_EPISODE  = Regex('.+(Episode|Ep.) (\d{1,3})')
 ####################################################################################################
 # Set up containers for all possible objects
 def Start():
@@ -43,13 +43,16 @@ def MainMenu():
   oc = ObjectContainer()
   oc.add(DirectoryObject(key=Callback(MTVShows, title='MTV Shows'), title='MTV Shows')) 
   oc.add(DirectoryObject(key=Callback(MTVVideos, title='MTV Videos'), title='MTV Videos')) 
+  # THE MENU ITEM BELOW CONNECTS TO A FUNCTION WITHIN THIS CHANNEL CODE THAT PRODUCES A LIST OF SHOWS FOR USERS 
+  # IT DOES NOT USE OR INTERACT WITH THE SEARCH SERVICES FOR VIDEOS LISTED NEXT
   #To get the InputDirectoryObject to produce a search input in Roku, prompt value must start with the word "search"
   oc.add(InputDirectoryObject(key=Callback(ShowSearch), title='Search for MTV Shows', thumb=R(ICON), summary="Click here to search for shows", prompt="Search for the shows you would like to find"))
   oc.add(SearchDirectoryObject(identifier="com.plexapp.plugins.mtvshows", title=L("Search MTV Videos"), prompt=L("Search for Videos")))
   return oc
 #######################################################################################
-# This function produces a list of shows from the search results
+# This function produces a list of shows from the main search page at mtv.com so users can more easily find archived shows
 # It uses the "All Results" section of the search and only returns those that end with series.jhtml
+# THIS IS JUST A FUNCTION TO PROVIDE MORE ACCESS TO USERS AND DOES NOT USE OR INTERACT WITH THE SEARCH SERVICE FOR VIDEOS
 @route(PREFIX + '/showsearch')
 def ShowSearch(query):
     oc = ObjectContainer(title1='MTV', title2='Show Search Results')
@@ -317,9 +320,9 @@ def ArchiveSections(title, thumb, url):
   data = HTML.ElementFromURL(url, cacheTime = CACHE_1HOUR)
   section_list =[]
   for videos in data.xpath('//div[@id="generic2"]//ol/li'):
-    vid_id = videos.xpath('./p/strong/a//@href')[0].split('?id=')[1]
+    vid_id = videos.xpath('.//a//@href')[0].split('?id=')[1]
     title = videos.xpath('./p/strong/a//text()')[0]
-    thumb = BASE_URL + videos.xpath('./div[@class="thumb"]/a/img//@src')[1]
+    thumb = BASE_URL + videos.xpath('.//img//@src')[1]
     thumb = thumb.replace('70x53.jpg', '140x105.jpg')
     vid_url = MTV_PLAYLIST %vid_id
     oc.add(DirectoryObject(key=Callback(VideoPage, title=title, url=vid_url), title=title, thumb=thumb))
@@ -337,7 +340,6 @@ def SpecialSections(title, thumb, url):
   oc = ObjectContainer(title2=title)
   local_url = url +'video.jhtml'
   data = HTML.ElementFromURL(url, cacheTime = CACHE_1HOUR)
-  # Check to see if there is a second pages here
   for videos in data.xpath('//li/div[@class="title1"]'):
     vid_id = videos.xpath('./a//@href')[0].split('?id=')[1]
     title = videos.xpath('./meta[@itemprop="name"]//@content')[0]
@@ -366,33 +368,23 @@ def ShowVideos(title, url, season):
   data = HTML.ElementFromURL(local_url)
   for video in data.xpath('//ol/li[@itemtype="http://schema.org/VideoObject"]'):
     # If the link does not have a mainuri, it will not play through the channel with the url service, so added a check for that here
-    other_info = video.xpath('.//@maintitle')[0]
+    title = video.xpath('.//@maintitle')[0]
     episode = video.xpath('./ul/li[@class="list-ep"]//text()')[0]
-    seas_ep = SeasEpFind(episode,other_info, season)
+    seas_ep = SeasEpFind(episode,title, season)
     episode = int(seas_ep[0])
     new_season = int(seas_ep[1])
-    title = video.xpath('./meta[@itemprop="name"]//@content')[0]
-    if not title:
-      title = other_info
-    thumb = video.xpath('./meta[@itemprop="thumbnail"]//@content')[0]
-    if not thumb.startswith('http://'):
-      thumb = BASE_URL + thumb
-    thumb = thumb.split('?')[0]
-    vid_url = video.xpath('./meta[@itemprop="url"]//@content')[0]
-    if not vid_url.startswith('http://'):
-      vid_url = BASE_URL + vid_url
-    desc = video.xpath('./meta[@itemprop="description"]//@content')[0]
-    date = video.xpath('./ul/li[@class="list-date"]//text()')[0]
+    thumb = BASE_URL + video.xpath('./meta[@itemprop="thumbnail"]//@content')[0].split('?')[0]
+    if not thumb:
+      thumb = video.xpath('.//li[contains(@class="img")]/img///@src')[0]
+    vid_url = BASE_URL + video.xpath('.//@mainurl')[0]
+    desc = video.xpath('.//@maincontent')[0]
+    date = video.xpath('.//@mainposted')[0]
     if 'hrs ago' in date:
-      try:
-        date = Datetime.Now()
-      except:
-        date = ''
+      date = Datetime.Now()
     else:
       date = Datetime.ParseDate(date)
 
-    # HERE WE CHECK TO SEE IF THE VIDEO IS A PLAYLIST OTHER THAN A FULL EPISODE. (SEE CHANNEL README FILE FOR FULL EXPLANATION) 
-    # ONLY MTV SPECIALS HAVE MULTIPLE VIDEOS THAT NEED TO USE THE MTV_PLAYLIST URL TO PRODUCE A PLAYABLE LIST OF THE VIDEO CLIPS
+    # HERE WE CHECK TO SEE IF THE VIDEO CLIP IS A PLAYLIST (SEE CHANNEL README FILE FOR FULL EXPLANATION) 
     # ANNOYINGLY ALMOST ALL OF THE URLS AND URI DATA FOR ALL VIDEO CLIPS LISTED ON THE MTV WEBSITE ARE LISTED AS PLAYLIST EVEN THOUGH
     # THE BONUS CLIPS, SNEAK PEAKS, ETC FOR EACH SHOW ONLY HAVE ONE VIDEO IN THAT PLAYLIST, SO WE IGNORE THOSE.
     if '&id=' in vid_url and '?filter=' not in url:
@@ -421,7 +413,6 @@ def ShowVideos(title, url, season):
     return oc
 ####################################################################################################
 # This produces videos for most popular and latest full epsodes as well for playlist broken down with the MTV_Playlist
-# THIS FUNCTION DOES SEEM TO TAKE LONGER TO PROCESS THE VIDEOS
 @route(PREFIX + '/videopage', page=int)
 def VideoPage(url, title, page=1):
   oc = ObjectContainer(title2=title)
@@ -432,29 +423,25 @@ def VideoPage(url, title, page=1):
   # THIS IS A UNIQUE DATA PULL
   data = HTML.ElementFromURL(local_url)
   for item in data.xpath('//ol/li[@itemtype="http://schema.org/VideoObject"]'):
-    link = item.xpath('./div/a//@href')[0]
-    if not link.startswith('http://'):
-      link = BASE_URL + link
-    image = item.xpath('./div/a/img//@src')[0]
+    link = BASE_URL + item.xpath('.//a//@href')[0]
+    image = item.xpath('.//img//@src')[0]
     if not image.startswith('http://'):
       image = BASE_URL + image
-    video_title = item.xpath('./div/meta[@itemprop="name"]//@content')[0].strip()
-    video_title = video_title.replace('\n', '')
-    if video_title == None or len(video_title) == 0:
-      video_title = item.xpath('div/a/img')[-1].get('alt')
+    try:
+      video_title = item.xpath('.//img[@itemprop="thumbnail"]//@alt')[0]
+    except:
+      video_title = item.xpath('./div/meta[@itemprop="name"]//@content')[0].strip()
+      video_title = video_title.replace('\n', '')
     # here we want to see if there is an episode and season info for the video
     seas_ep = SeasEpFind(episode='--', other_info=video_title, season=0)
     episode = int(seas_ep[0])
     season = int(seas_ep[1])
     try:
-      date = item.xpath('./p/span/time[@itemprop="datePublished"]//text()')[0]
+      date = item.xpath('.//time[@itemprop="datePublished"]//text()')[0]
     except:
       date = ''
     if 'hrs ago' in date:
-      try:
-        date = Datetime.Now()
-      except:
-        date = ''
+      date = Datetime.Now()
     else:
       date = Datetime.ParseDate(date)
 
@@ -484,22 +471,22 @@ def VideoPage(url, title, page=1):
 ###########################################################################################
 # This function is used to pull the season and episodes for shows 
 @route(PREFIX + '/seasepfind')
-def SeasEpFind(episode, other_info, season):
+def SeasEpFind(episode, title, season):
 
-  #Log('the value of other_info is %s' %other_info)
-  if episode == '--' or episode == 'Special':
+  #Log('the value of title is %s' %title)
+  try:
+    test_ep = int(episode)
+  except:
     try:
-      episode = RE_EPISODE_NEW.search(other_info).group(2)
+      episode = RE_EPISODE_ALL.search(title).group(1)
     except:
       episode = '0'
-  else:
-    pass
   if season==0:
-    if len(episode) > 2:
+    if len(episode)==3:
       new_season = episode[0]
     else:
       try:
-        new_season = RE_SEASON_NEW.search(other_info).group(2)
+        new_season = RE_SEASON.search(title).group(2)
       except:
         new_season = '1'
   else:
