@@ -373,7 +373,9 @@ def ShowVideos(title, url, season):
     seas_ep = SeasEpFind(episode,title, season)
     episode = int(seas_ep[0])
     new_season = int(seas_ep[1])
-    thumb = BASE_URL + video.xpath('./meta[@itemprop="thumbnail"]//@content')[0].split('?')[0]
+    thumb = video.xpath('./meta[@itemprop="thumbnail"]//@content')[0].split('?')[0]
+    if not thumb.startswith('http:'):
+      humb = BASE_URL + thumb
     if not thumb:
       thumb = video.xpath('.//li[contains(@class="img")]/img///@src')[0]
     vid_url = BASE_URL + video.xpath('.//@mainurl')[0]
@@ -478,7 +480,7 @@ def SeasEpFind(episode, title, season):
     test_ep = int(episode)
   except:
     try:
-      episode = RE_EPISODE_ALL.search(title).group(1)
+      episode = RE_EPISODE.search(title).group(2)
     except:
       episode = '0'
   if season==0:
