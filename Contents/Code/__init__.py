@@ -374,10 +374,10 @@ def ShowVideos(title, url, season):
     episode = int(seas_ep[0])
     new_season = int(seas_ep[1])
     thumb = video.xpath('./meta[@itemprop="thumbnail"]//@content')[0].split('?')[0]
-    if not thumb.startswith('http:'):
-      humb = BASE_URL + thumb
     if not thumb:
       thumb = video.xpath('.//li[contains(@class="img")]/img///@src')[0]
+    if not thumb.startswith('http:'):
+      thumb = BASE_URL + thumb
     vid_url = BASE_URL + video.xpath('.//@mainurl')[0]
     desc = video.xpath('.//@maincontent')[0]
     date = video.xpath('.//@mainposted')[0]
