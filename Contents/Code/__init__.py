@@ -270,6 +270,7 @@ def ShowSections(title, thumb, url, season):
   if len(oc) < 1:
     section_nav = data.xpath('//ul[contains(@class,"section-nav")]//a//text()')
     if 'Watch Video' in section_nav:
+      local_url = url.replace('series', 'video')
       oc.add(DirectoryObject(key=Callback(ShowVideos, title='All Videos', url=url, season=0), title='All Videos', thumb = thumb))
       return oc
     else:
@@ -364,7 +365,10 @@ def SpecialSections(title, thumb, url):
 @route(PREFIX + '/showvideos', season=int)
 def ShowVideos(title, url, season):
   oc = ObjectContainer(title2=title)
-  local_url = url.replace('series', 'video')
+  if 'series.jhtml' in url:
+    local_url = url.replace('series', 'video')
+  else:
+    local_url = url
   data = HTML.ElementFromURL(local_url)
   for video in data.xpath('//ol/li[@itemtype="http://schema.org/VideoObject"]'):
     # If the link does not have a mainuri, it will not play through the channel with the url service, so added a check for that here
@@ -375,7 +379,7 @@ def ShowVideos(title, url, season):
     new_season = int(seas_ep[1])
     thumb = video.xpath('./meta[@itemprop="thumbnail"]//@content')[0].split('?')[0]
     if not thumb:
-      thumb = video.xpath('.//li[contains(@class="img")]/img///@src')[0]
+      thumb = video.xpath('.//li[contains(@id,"img")]/img//@src')[0]
     if not thumb.startswith('http:'):
       thumb = BASE_URL + thumb
     vid_url = BASE_URL + video.xpath('.//@mainurl')[0]
