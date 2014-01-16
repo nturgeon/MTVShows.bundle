@@ -1,4 +1,4 @@
-# VIDEO CLIP FOR BONUS CLIP OR SNEEK PEEK ONLY HAVE ONE PART DESPITE THE WEBISTE SHOWING THE METADATA FOR ALL OF THEM AS A PLAYLIST
+# VIDEO CLIP FOR BONUS CLIP OR SNEEK PEEK ONLY HAVE ONE PART DESPITE THE WEBSITE SHOWING THE METADATA FOR ALL OF THEM AS A PLAYLIST
 
 TITLE = 'MTV Shows'
 PREFIX = '/video/mtvshows'
@@ -27,11 +27,11 @@ RE_EP = Regex('\| Ep. (\d{1,3})')
 RE_VIDID = Regex('^http://www.mtv.com/videos/\?id=(\d{7})')
 # episode regex for new show format
 RE_EXX = Regex('/e(\d+)')
+# WE REMOVED THE LATEST MOVIE INTERVIEWS FOR NOW SINCE THE FORMAT DOES NOT WORK
 LATEST_VIDEOS = [
     {'title'  : 'Latest Full Episodes',  'url'  : 'http://www.mtv.com/videos/home.jhtml'},
     {'title'  : 'Latest Music Videos',   'url'  : 'http://www.mtv.com/music/videos/'},
-    {'title'  : 'Latest Movie Trailers',  'url'  : 'http://www.mtv.com/movies/trailer_park/'},
-    {'title'  : 'Latest Movie Interviews',   'url'  : 'http://www.mtv.com/movies/features_interviews/morevideo.jhtml'}
+    {'title'  : 'Latest Movie Trailers',  'url'  : 'http://www.mtv.com/movies/trailer_park/'}
 ]
 MOST_POPULAR = [
     {'title'  : 'All Videos',  'video_type'  : 'videos/?'},
@@ -82,7 +82,6 @@ def ShowSearch(query):
     oc = ObjectContainer(title1='MTV', title2='Show Search Results')
     url = '%s/search/?q=%s' %(BASE_URL, String.Quote(query, usePlus = True))
     html = HTML.ElementFromURL(url)
-    #for item in html.xpath('//div[contains(@class,"mtvn-item-content")]'):
     for item in html.xpath('//div[@id="searchResults"]/ul/li'):
         link = item.xpath('.//a/@href')[0]
         # This make sure it only returns shows that start with www.mtv.com/shows/ that may contain /season_?/ and end with / or series.jhtml
@@ -93,7 +92,6 @@ def ShowSearch(query):
             else:
                 url_test = url_part.split('/')[1]
             if not url_test or url_test=='series.jhtml':
-                #title = item.xpath('.//a//text()')[0]
                 title = item.xpath('./div[contains(@class,"mtvn-item-content")]//a//text()')[0]
                 thumb = item.xpath('.//img/@src')[0].split('?')[0]
                 # Most shows are listed by individual season in the show search
@@ -294,9 +292,7 @@ def ShowSeasons(title, thumb, url):
                     oc.add(DirectoryObject(key=Callback(ShowSections, title=season_title, url=season_url, season=season, thumb=thumb, show_url=local_url), title=season_title, thumb=thumb))
             else:
                 # These could manually be broken up by season but you risk losing some videos that may not have the Season listed in the title 
-                # We set the season to zero so that each season will be picked up properly
-                # DO WE WANT TO LOOK AT BREAKING THIS INTO THOSE WITH MULTIPLE SEASONS AND THOSE WITH ONLY ONE?
-                # THE NEXT 8 LINES BREAK IT UP
+                # We set the season to zero if multiple seasons so that each season will be picked up properly
                 first_title = data.xpath('//ol/li[@itemtype="http://schema.org/VideoObject"]/@maintitle')[0]
                 (new_season, episode) = SeasEpFind(first_title)
                 if int(new_season) > 1:
@@ -306,7 +302,6 @@ def ShowSeasons(title, thumb, url):
                     season_title='Season One'
                     season = 1
                 season_url = local_url + '?filter='
-                #oc.add(DirectoryObject(key=Callback(ShowSections, title='All Season', url=season_url, season=0, thumb=thumb, show_url=local_url), title='All Seasons', thumb=thumb))
                 oc.add(DirectoryObject(key=Callback(ShowSections, title=season_title, url=season_url, season=season, thumb=thumb, show_url=local_url), title=season_title, thumb=thumb))
         else:
             # This handles those without a video section
@@ -351,7 +346,7 @@ def ShowSections(title, thumb, url, season, show_url):
             oc.add(DirectoryObject(key=Callback(ShowVideos, title=sec_title, url=sec_url, season=season), title=sec_title, thumb=thumb))
 
         # Add a section that shows all videos
-        oc.add(DirectoryObject(key=Callback(ShowVideos, title='All Videos', url=show_url, season=season), title='All Videos', thumb = thumb))
+        oc.add(DirectoryObject(key=Callback(ShowVideos, title='All Videos', url=url, season=season), title='All Videos', thumb = thumb))
 
     # This handles pages that do not have a Watch Video section
     if len(oc) < 1:
@@ -389,7 +384,7 @@ def ShowVideos(title, url, season):
         # ANNOYINGLY ALMOST ALL OF THE URLS AND URI DATA FOR VIDEO CLIPS ON THE MTV WEBSITE ARE LISTED AS PLAYLIST EVEN THOUGH
         # MOST OF THE BONUS CLIPS, SNEAK PEAKS, ETC FOR EACH SHOW ONLY HAVE ONE VIDEO IN THAT PLAYLIST.
         # THIS IS SET TO PRODUCE PLAYLISTS FOR SPECIALS THAT END WITH SERIES.JHTML SINCE THEY ALL HAVE MULTIPLE PARTS
-        # BUT IT DOES PRODUCES PLAYLISTS FOR BONUS CLIPS, SNEAK PEAKS, ETC FOR EACH SHOW'S ALL VIDEOS SECTION.
+        # BUT IT DOES NOT PRODUCES PLAYLISTS FOR CLIPS FOR SHOW BECAUSE THEY ALL HAVE 'FILTER=' AT THE END.
         if '&id=' in vid_url and 'filter=' not in url:
             vid_id = vid_url.split('&id=')[1]
             vid_url = MTV_PLAYLIST %vid_id
@@ -504,7 +499,6 @@ def VideoPage(url, title, page=1):
             continue
         if not link.startswith('http://'):
             link = BASE_URL + link
-        #image = item.xpath('.//img/@src')[0]
         try:
             image = item.xpath('.//img[@itemprop="thumbnail"]/@src')[0]
         except:
