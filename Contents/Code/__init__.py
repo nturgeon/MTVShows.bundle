@@ -30,7 +30,7 @@ RE_EXX = Regex('/e(\d+)')
 LATEST_VIDEOS = [
     {'title'  : 'Latest Full Episodes',  'url'  : 'http://www.mtv.com/videos/home.jhtml'},
     {'title'  : 'Latest Music Videos',   'url'  : 'http://www.mtv.com/music/videos/'},
-    {'title'  : 'Latest Movie Trailers',  'url'  : 'http://www.mtv.com/movies/trailer_park/'},
+    {'title'  : 'Latest Movie Trailers',  'url'  : 'http://www.mtv.com/movies/trailer_park/'}
 ]
 # The latest interviews do not fit into the current video page format, so we have removed them
 #    {'title'  : 'Latest Movie Interviews',   'url'  : 'http://www.mtv.com/movies/features_interviews/morevideo.jhtml'}
