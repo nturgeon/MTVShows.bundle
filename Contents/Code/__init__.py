@@ -1,4 +1,4 @@
-# VIDEO CLIP FOR BONUS CLIP OR SNEEK PEEK ONLY HAVE ONE PART DESPITE THE WEBSITE SHOWING THE METADATA FOR ALL OF THEM AS A PLAYLIST
+# VIDEO CLIP FOR BONUS CLIP OR SNEEK PEEK ONLY HAVE ONE PART DESPITE THE WEBISTE SHOWING THE METADATA FOR ALL OF THEM AS A PLAYLIST
 
 TITLE = 'MTV Shows'
 PREFIX = '/video/mtvshows'
@@ -27,12 +27,13 @@ RE_EP = Regex('\| Ep. (\d{1,3})')
 RE_VIDID = Regex('^http://www.mtv.com/videos/\?id=(\d{7})')
 # episode regex for new show format
 RE_EXX = Regex('/e(\d+)')
-# WE REMOVED THE LATEST MOVIE INTERVIEWS FOR NOW SINCE THE FORMAT DOES NOT WORK
 LATEST_VIDEOS = [
     {'title'  : 'Latest Full Episodes',  'url'  : 'http://www.mtv.com/videos/home.jhtml'},
     {'title'  : 'Latest Music Videos',   'url'  : 'http://www.mtv.com/music/videos/'},
-    {'title'  : 'Latest Movie Trailers',  'url'  : 'http://www.mtv.com/movies/trailer_park/'}
+    {'title'  : 'Latest Movie Trailers',  'url'  : 'http://www.mtv.com/movies/trailer_park/'},
 ]
+# The latest interviews do not fit into the current video page format, so we have removed them
+#    {'title'  : 'Latest Movie Interviews',   'url'  : 'http://www.mtv.com/movies/features_interviews/morevideo.jhtml'}
 MOST_POPULAR = [
     {'title'  : 'All Videos',  'video_type'  : 'videos/?'},
     {'title'  : 'Full Episodes',   'video_type'  : 'tv-show-videos/?category=full-episodes&'},
@@ -277,7 +278,7 @@ def ShowSeasons(title, thumb, url):
     # The url below uses a video player format that cuts out some of the extra code in the page, but doesn't always work
     #local_url = SERIES %local_url
     data = HTML.ElementFromURL(local_url, cacheTime = CACHE_1HOUR)
-    section_nav = data.xpath('//ul[@class=" section-nav"]/li[not(contains(@class,"subItem"))]//a//text()')
+    section_nav = data.xpath('//ul[contains(@class,"section-nav")]/li[not(contains(@class,"subItem"))]//a//text()')
     # This is for those shows with old format
     if len(section_nav) > 0:
         # Make sure the show has videos
@@ -292,10 +293,10 @@ def ShowSeasons(title, thumb, url):
                     oc.add(DirectoryObject(key=Callback(ShowSections, title=season_title, url=season_url, season=season, thumb=thumb, show_url=local_url), title=season_title, thumb=thumb))
             else:
                 # These could manually be broken up by season but you risk losing some videos that may not have the Season listed in the title 
-                # We set the season to zero if multiple seasons so that each season will be picked up properly
+                # We set the season to zero for those with multiple seasons so that each season will be picked up properly
                 first_title = data.xpath('//ol/li[@itemtype="http://schema.org/VideoObject"]/@maintitle')[0]
                 (new_season, episode) = SeasEpFind(first_title)
-                if int(new_season) > 1:
+                if int(new_season) > 1 or 'True Life' in title:
                     season_title='All Seasons'
                     season = 0
                 else:
@@ -335,7 +336,7 @@ def ShowSections(title, thumb, url, season, show_url):
     oc = ObjectContainer(title2=title)
     data = HTML.ElementFromURL(show_url, cacheTime = CACHE_1HOUR)
     # Since we send some shows directly to this function first, we need to check for videos here as well
-    video_check = data.xpath('//a[text()="Watch Video"]/parent::div')
+    video_check = data.xpath('//li//a[text()="Watch Video"]')
     if video_check:
         sub_list = data.xpath('//li[contains(@class,"-subItem")]/div/a')
         # This is for those shows that have sections listed below Watch Video
@@ -351,7 +352,7 @@ def ShowSections(title, thumb, url, season, show_url):
     # This handles pages that do not have a Watch Video section
     if len(oc) < 1:
         Log ('still no value for objects')
-        return ObjectContainer(header="Empty", message="There are no videos for this show.")
+        return ObjectContainer(header="Empty", message="There are no sections for this show.")
     else:
         return oc
 #######################################################################################
@@ -379,6 +380,10 @@ def ShowVideos(title, url, season):
             thumb = BASE_URL + thumb
         vid_url = BASE_URL + video.xpath('./@mainurl')[0]
         desc = video.xpath('./@maincontent')[0]
+        # It appears they have started locking down some of their videos but still list them on their site
+        # so if **Episode available on Amazon Prime** or **This Episode Is Not Currently Available** in description, the video is not available
+        if '**Episode available on Amazon Prime**' in desc or '**This Episode Is Not Currently Available**' in desc:
+            continue
 
         # HERE WE CHECK TO SEE IF THE VIDEO CLIP IS A PLAYLIST (SEE CHANNEL README FILE FOR FULL EXPLANATION) 
         # ANNOYINGLY ALMOST ALL OF THE URLS AND URI DATA FOR VIDEO CLIPS ON THE MTV WEBSITE ARE LISTED AS PLAYLIST EVEN THOUGH

@@ -8,10 +8,6 @@
         <string>*</string>
     <key>PlexFrameworkVersion</key>
         <string>2</string>
-    <key>PlexVideoCodec</key>
-        <array>
-            <string>H.264</string>
-        </array>
 	<key>PlexPluginRegions</key>
 	<array>
 		<string>US</string>
