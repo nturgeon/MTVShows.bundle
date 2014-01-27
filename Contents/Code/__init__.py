@@ -381,8 +381,9 @@ def ShowVideos(title, url, season):
         vid_url = BASE_URL + video.xpath('./@mainurl')[0]
         desc = video.xpath('./@maincontent')[0]
         # It appears they have started locking down some of their videos but still list them on their site
-        # so if **Episode available on Amazon Prime** or **This Episode Is Not Currently Available** in description, the video is not available
-        if '**Episode available on Amazon Prime**' in desc or '**This Episode Is Not Currently Available**' in desc:
+        # most have 'class="quarantineDate"' in the description, but not all so using the text instead of the class
+        #if 'class="quarantineDate"' in desc:
+        if '**Episode available on ' in desc or '**This Episode Is Not Currently Available**' in desc:
             continue
 
         # HERE WE CHECK TO SEE IF THE VIDEO CLIP IS A PLAYLIST (SEE CHANNEL README FILE FOR FULL EXPLANATION) 
