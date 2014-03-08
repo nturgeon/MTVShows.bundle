@@ -1,4 +1,4 @@
-# VIDEO CLIP FOR BONUS CLIP OR SNEEK PEEK ONLY HAVE ONE PART DESPITE THE WEBISTE SHOWING THE METADATA FOR ALL OF THEM AS A PLAYLIST
+# VIDEO CLIP FOR BONUS CLIP OR SNEEK PEEK FOR MTV ONLY HAVE ONE PART DESPITE THE WEBISTE SHOWING THE METADATA FOR ALL OF THEM AS A PLAYLIST
 
 TITLE = 'MTV Shows'
 PREFIX = '/video/mtvshows'
@@ -11,7 +11,7 @@ MTV_SHOWS_ALL = 'http://www.mtv.com/ontv/all/'
 # This code does not currently work with shows that do not have season if you add a filter and shows with season have this code already in URL
 #SERIES_VIDEOS = 'http://www.mtv.com/global/music/modules/video/shows/?seriesID=%s'
 # The three variables below produce the results page for videos for shows with the new format
-NEW_SHOW_AJAX = 'http://www.mtv.com/include/shows/seasonAllVideosAjax?urlKey=%s&seasonId=%s&start=%s&resultSize=30&template=%s'
+NEW_SHOW_AJAX = 'http://www.mtv.com/include/shows/seasonAllVideosAjax?urlKey=%s&seasonId=%s&resultSize=30&template=%s&start='
 ALL_VID_TEMP = '%2Fshows%2Fplatform%2Fwatch%2Fmodules%2FseasonRelatedPlaylists'
 FULL_EP_TEMP = '%2Fshows%2Fplatform%2Fwatch%2Fmodules%2FepisodePlaylists'
 
@@ -25,6 +25,7 @@ RE_SEASON_EP = Regex('\(Season (\d{1,2})\) \| Ep. (\d{1,2})')
 RE_SEASON  = Regex('Season (\d{1,2})')
 RE_EP = Regex('\| Ep. (\d{1,3})')
 RE_VIDID = Regex('^http://www.mtv.com/videos/\?id=(\d{7})')
+RE_VIDID2 = Regex('(\d{7})')
 # episode regex for new show format
 RE_EXX = Regex('/e(\d+)')
 LATEST_VIDEOS = [
@@ -132,6 +133,9 @@ def LatestVideos(title):
     oc = ObjectContainer(title2=title)
     for items in LATEST_VIDEOS:
         title = items['title']
+        # Skip full episodes for Android Clients
+        if "Full Episodes" in title and Client.Platform in ('Android'):
+            continue
         url = items['url']
         oc.add(DirectoryObject(key=Callback(VideoPage, title=title, url=url), title=title)) 
     return oc
@@ -142,6 +146,9 @@ def MostPopularVideos(title):
     oc = ObjectContainer(title2=title)
     for items in MOST_POPULAR:
         title = items['title']
+        # Skip full episodes for Android Clients
+        if "Full Episodes" in title and Client.Platform in ('Android'):
+            continue
         video_type = items['video_type']
         oc.add(DirectoryObject(key=Callback(MostPopularSections, title=title, video_type=video_type), title=title)) 
     return oc
@@ -195,11 +202,23 @@ def ProduceSpecials(title):
         url = video.xpath('./@href')[0]
         if not url.startswith('http://'):
             url = BASE_URL + url
-        if url.startswith('http://www.mtv.com') and 'series.jhtml' in url:
+        if url.startswith('http://www.mtv.com'):
             title = video.xpath('.//text()')[0]
-            vid_url = url.replace('series', 'video')
-            # Here we set the season to one because we do not need season numbers pulled for this
-            oc.add(DirectoryObject(key=Callback(ShowSections, title=title, url=vid_url + '?filter=', thumb=R(ICON), season=1, show_url=vid_url), title = title))
+            if '/shows/' in url:
+                if url.endswith('series.jhtml'):
+                    vid_url = url.replace('series', 'video')
+                    # Here we set the season to one because we do not need season numbers pulled for this
+                    oc.add(DirectoryObject(key=Callback(ShowSections, title=title, url=vid_url + '?filter=', thumb=R(ICON), season=1, show_url=vid_url), title = title))
+                else:
+                    # One has new format which means more will follow
+                    vid_url = url + 'video/'
+                    oc.add(DirectoryObject(key=Callback(ShowNewSections, title=title, thumb=R(ICON), url=vid_url, season=1), title = title))
+            # FOUND A FEW IN SPECIALS THAT GO STRAIGHT TO A VIDEO
+            elif url.endswith('playlist.jhtml'):
+                oc.add(VideoClipObject(url=url, title=title, thumb=R(ICON)))
+            else:
+                # These are the special archives we pick up below
+                continue
         else:
             continue
             
@@ -217,6 +236,7 @@ def ProduceSpecials(title):
         return oc
 #########################################################################################
 # This functions pulls the full archive list of shows for MTV. This list includes specials.   /ontv/all/
+# ALL SHOWS LISTED IN THIS SECTION ARE THE OLD FORMAT SO NO ISSUE SENDING THEM TO OLD SHOW SECTION
 @route(PREFIX + '/showsall')
 def ShowsAll(title, page=1):
     oc = ObjectContainer(title2=title)
@@ -240,6 +260,7 @@ def ShowsAll(title, page=1):
             else:
                 season = 1
             # These go straight to the section production because they are already broken up by season
+            # ALL SHOWS LISTED HERE HAVE SERIES ON THE END FOR NOW
             vid_url = url.replace('series', 'video')
             oc.add(DirectoryObject(key=Callback(ShowSections, title=title, url=vid_url + '?filter=', thumb=thumb, season=int(season), show_url=vid_url), title = title, thumb = thumb))
                 
@@ -274,16 +295,19 @@ def ShowsAll(title, page=1):
 @route(PREFIX + '/showseasons')
 def ShowSeasons(title, thumb, url):
     oc = ObjectContainer(title2=title)
-    local_url = url.replace('series', 'video')
-    # The url below uses a video player format that cuts out some of the extra code in the page, but doesn't always work
-    #local_url = SERIES %local_url
-    data = HTML.ElementFromURL(local_url, cacheTime = CACHE_1HOUR)
-    section_nav = data.xpath('//ul[contains(@class,"section-nav")]/li[not(contains(@class,"subItem"))]//a//text()')
-    # This is for those shows with old format
-    if len(section_nav) > 0:
+    # These are shows known to have a bad url
+    if 'teen_mom_2' in url:
         # Make sure the show has videos
-        if 'Watch Video' in section_nav:
-            # Check for season
+        url = url.split('series.jhtml')[0]
+    # This is for those shows with old format
+    if '/shows/' in url and url.endswith('series.jhtml'):
+        local_url = url.replace('series', 'video')
+        # The url below uses a video player format that cuts out some of the extra code in the page, but doesn't always work with MTV
+        #local_url = SERIES %local_url
+        data = HTML.ElementFromURL(local_url, cacheTime = CACHE_1HOUR)
+        # FOUND THAT SOME DO NOT HAVE A WATCH VIDEO LINK ON THE SIDE BUT ALL THAT HAVE WATCH VIDEO TITLE AT THE TOP
+        video_check = data.xpath('//div/h1//text()')[0]
+        if "Watch Video" in video_check:
             season_list = data.xpath('//*[@id="videolist_id"]/option')
             if len(season_list)> 0:
                 for season in season_list:
@@ -305,25 +329,26 @@ def ShowSeasons(title, thumb, url):
                 season_url = local_url + '?filter='
                 oc.add(DirectoryObject(key=Callback(ShowSections, title=season_title, url=season_url, season=season, thumb=thumb, show_url=local_url), title=season_title, thumb=thumb))
         else:
-            # This handles those without a video section
             Log ('there are no videos for this show')
             return ObjectContainer(header="Empty", message="There are no videos to list right now.")
 
-    # This is for those shows with new format
-    # For these shows we get the seasons
-    elif not url.endswith('series.jhtml'):
+    # This is to get seasons for shows with new format
+    elif '/shows/' in url and not url.endswith('series.jhtml'):
         local_url = url + 'video/'
         html = HTML.ElementFromURL(local_url, cacheTime = CACHE_1HOUR)
-        for section in html.xpath('//dd/ul/li/a'):
-            title = section.xpath('./span[@class="headline-s"]//text()')[0].strip().title()
-            season = int(title.split()[1])
-            season_id = section.xpath('./@data-id')[0]
-            url_key = url.split('shows/')[1].replace('/','')
-            oc.add(DirectoryObject(key=Callback(ShowNewSections, title=title, thumb=thumb, url_key=url_key, season=season, season_id=season_id), title=title, thumb=Resource.ContentsOfURLWithFallback(url=thumb, fallback=ICON)))
+        new_season_list = html.xpath('//dd/ul/li/a')
+        if len(new_season_list)> 0:
+            for section in new_season_list:
+                title = section.xpath('./span[@class="headline-s"]//text()')[0].strip().title()
+                season = int(title.split()[1])
+                season_id = section.xpath('./@data-id')[0]
+                oc.add(DirectoryObject(key=Callback(ShowNewSections, title=title, thumb=thumb, url=local_url, season=season, season_id=season_id), title=title, thumb=Resource.ContentsOfURLWithFallback(url=thumb, fallback=ICON)))
+        else:
+            oc.add(DirectoryObject(key=Callback(ShowNewSections, title='All Seasons', thumb=thumb, url=local_url, season=0), title='All Seasons', thumb=Resource.ContentsOfURLWithFallback(url=thumb, fallback=ICON)))
     else:
-        return ObjectContainer(header="Error", message="This show link is not in the proper format to return videos.")
+        return ObjectContainer(header="Empty", message="This show page is not in a format that can return videos.")
 
-    # This handles pages that do not have a Watch Video section
+    # SHOULD NOT NEED THIS BUT JUST IN CASE SOME ANY MEET THE ABOVE CRITERIA AND DO NOT RETURN AN OC
     if len(oc) < 1:
         Log ('still no value for objects')
         return ObjectContainer(header="Empty", message="There are no videos to list right now.")
@@ -336,14 +361,14 @@ def ShowSections(title, thumb, url, season, show_url):
     oc = ObjectContainer(title2=title)
     data = HTML.ElementFromURL(show_url, cacheTime = CACHE_1HOUR)
     # Since we send some shows directly to this function first, we need to check for videos here as well
-    video_check = data.xpath('//li//a[text()="Watch Video"]')
+    # FOUND THAT SOME DO NOT HAVE A WATCH VIDEO LINK ON THE SIDE BUT ALL THAT HAVE WATCH VIDEO TITLE AT THE TOP
+    video_check = data.xpath('//div/h1//text()')[0]
     if video_check:
-        sub_list = data.xpath('//li[contains(@class,"-subItem")]/div/a')
         # This is for those shows that have sections listed below Watch Video
-        for section in sub_list:
+        for section in data.xpath('//li[contains(@class,"-subItem")]/div/a'):
+            sec_title = section.xpath('.//text()')[2].strip()
             section_filter = section.xpath('./@href')[0].split('filter=')[1]
             sec_url = url + section_filter
-            sec_title = section.xpath('.//text()')[2].strip()
             oc.add(DirectoryObject(key=Callback(ShowVideos, title=sec_title, url=sec_url, season=season), title=sec_title, thumb=thumb))
 
         # Add a section that shows all videos
@@ -352,16 +377,31 @@ def ShowSections(title, thumb, url, season, show_url):
     # This handles pages that do not have a Watch Video section
     if len(oc) < 1:
         Log ('still no value for objects')
-        return ObjectContainer(header="Empty", message="There are no sections for this show.")
+        return ObjectContainer(header="Empty", message="There are no videos listed for this show.")
     else:
         return oc
 #######################################################################################
 # This function produces sections for new show format
 @route(PREFIX + '/shownewsections', season=int)
-def ShowNewSections(title, thumb, url_key, season, season_id):
+def ShowNewSections(title, thumb, url, season, season_id=''):
     oc = ObjectContainer(title2=title)
-    oc.add(DirectoryObject(key=Callback(ShowNewVideos, title="Full Episodes", url_key=url_key, season=season, season_id=season_id), title="Full Episodes", thumb=thumb))
-    oc.add(DirectoryObject(key=Callback(ShowNewVideos, title="All Videos", url_key=url_key, season=season, season_id=season_id), title="All Videos", thumb=thumb))
+    url_key = url.split('shows/')[1].replace('/','')
+    # THIS PULL IS ALSO USED IN THE NEW SEASON FUNCTION ABOVE
+    html = HTML.ElementFromURL(url, cacheTime = CACHE_1HOUR)
+    section_list = html.xpath('//span[contains(@class,"filter") and not(contains(@class,"dropdown"))]/a')
+    for section in section_list:
+        id = section.xpath('./@id')[0]
+        if 'fullEps' in id:
+            title="Full Episodes"
+            template = FULL_EP_TEMP
+        else:
+            title="All Videos"
+            template = ALL_VID_TEMP
+        if season_id:
+            new_url = NEW_SHOW_AJAX %(url_key, season_id, template)
+        else:
+            new_url = url
+        oc.add(DirectoryObject(key=Callback(ShowNewVideos, title=title, url=new_url, season=season), title=title, thumb=thumb))
     return oc
 #################################################################################################################
 # This function produces videos from the table layout used by show video pages
@@ -372,6 +412,7 @@ def ShowVideos(title, url, season):
     oc = ObjectContainer(title2=title)
     data = HTML.ElementFromURL(url)
     for video in data.xpath('//ol/li[@itemtype="http://schema.org/VideoObject"]'):
+        vid_type = video.xpath('.//li[@class="list-ct"]')[0]
         title = video.xpath('./@maintitle')[0]
         thumb = video.xpath('./meta[@itemprop="thumbnail"]/@content')[0].split('?')[0]
         if not thumb:
@@ -397,26 +438,30 @@ def ShowVideos(title, url, season):
             # send to videopage function
             oc.add(DirectoryObject(key=Callback(VideoPage, title=title, url=vid_url), title=title, thumb=thumb, summary=desc))
         else:
-            date = video.xpath('./@mainposted')[0]
-            if 'hrs ago' in date or 'today' in date or 'hr ago' in date:
-                date = Datetime.Now() 
+            # Skip full episodes for Android Clients
+            if vid_type=="Full Episode" and Client.Platform in ('Android'):
+                continue
             else:
-                date = Datetime.ParseDate(date)
-            episode = video.xpath('.//li[@class="list-ep"]//text()')[0]
-            # We call the pull new_season so the blank value for shows without separate seasons stays intact for check
-            if episode.isdigit()==False or season==0:
-                (new_season, episode) = SeasEpFind(title)
-            else:
-                new_season = season
-            oc.add(EpisodeObject(
-                url = vid_url, 
-                season = int(new_season),
-                index = int(episode),
-                title = title, 
-                thumb = Resource.ContentsOfURLWithFallback(url=thumb, fallback=ICON),
-                originally_available_at = date,
-                summary = desc
-            ))
+                date = video.xpath('./@mainposted')[0]
+                if 'hrs ago' in date or 'today' in date or 'hr ago' in date:
+                    date = Datetime.Now() 
+                else:
+                    date = Datetime.ParseDate(date)
+                episode = video.xpath('.//li[@class="list-ep"]//text()')[0]
+                # We call the pull new_season so the blank value for shows without separate seasons stays intact for check
+                if episode.isdigit()==False or season==0:
+                    (new_season, episode) = SeasEpFind(title)
+                else:
+                    new_season = season
+                oc.add(EpisodeObject(
+                    url = vid_url, 
+                    season = int(new_season),
+                    index = int(episode),
+                    title = title, 
+                    thumb = Resource.ContentsOfURLWithFallback(url=thumb, fallback=ICON),
+                    originally_available_at = date,
+                    summary = desc
+                ))
 
     # The site currently orders the videos by most recent but may need to use it later
     #oc.objects.sort(key = lambda obj: obj.originally_available_at, reverse=True)
@@ -428,57 +473,80 @@ def ShowVideos(title, url, season):
         return oc
 #######################################################################################
 # This function produces videos for the new show format
+# NEED TO LOOK BACK AT CODE FOR SPECIALS SINCE THEY DO NOT SHOW UP AS A PLAYLIST URL AND MORE WILL BE ADDED AS TIME GOES ON
 @route(PREFIX + '/shownewvideos', season=int, start=int)
-def ShowNewVideos(title, url_key, season, season_id, start=0):
+def ShowNewVideos(title, url, season, start=0):
     oc = ObjectContainer(title2=title)
   
-    if title == 'All Videos':
-        template = ALL_VID_TEMP
+    if 'AllVideosAjax' in url:
+        local_url = url + str(start)
     else:
-        template = FULL_EP_TEMP
-    local_url = NEW_SHOW_AJAX %(url_key, season_id, str(start), template)
+        local_url = url
     data = HTML.ElementFromURL(local_url)
     video_list = data.xpath('//div[@class="span4"]')
     for video in video_list:
-        vid_type = video.xpath('./@data-filter')[0]
-        vid_url = video.xpath('./a/@href')[0]
-        thumb = video.xpath('.//img/@data-src')[0]
-        seas_ep = video.xpath('.//div[@class="header"]/span[@class="headline"]//text()')[0].strip()
-        # Full episodes have a sub-header field for the title but video clips have a hidden title
+        try: vid_avail = video.xpath('.//div[@class="message"]//text()')[0]
+        except: vid_avail = 'Now'
+        # Full episodes have a sub-header field for the title but all videos have a second header hidden text
         try:
             vid_title = video.xpath('.//div[@class="sub-header"]/span//text()')[0].strip()
         except:
             vid_title = video.xpath('.//div[@class="header"]/span[@class="hide"]//text()')[0].strip()
-        # One descriptions is blank and gives an error
-        try:
-            desc = video.xpath('.//div[contains(@class,"deck")]/span//text()')[0].strip()
-        except:
-            desc = None
-        other_info = video.xpath('.//div[@class="meta muted"]/small//text()')[0].strip()
-        duration = Datetime.MillisecondsFromString(other_info.split(' - ')[0])
-        date = Datetime.ParseDate(video.xpath('./@data-sort')[0])
-        try:
-            episode = int(RE_EXX.search(seas_ep).group(1))
-        except:
-            episode = None
+        thumb = video.xpath('.//img/@data-src')[0]
+        if vid_avail == 'Now':
+            vid_type = video.xpath('./@data-filter')[0]
+            # Skip full episodes for Android Clients
+            if vid_type=="FullEpisodes" and Client.Platform in ('Android'):
+                continue
+            vid_url = video.xpath('./a/@href')[0]
+            seas_ep = video.xpath('.//div[@class="header"]/span[@class="headline"]//text()')[0].strip()
+            # One descriptions is blank and gives an error
+            try:
+                desc = video.xpath('.//div[contains(@class,"deck")]/span//text()')[0].strip()
+            except:
+                desc = None
+            other_info = video.xpath('.//div[@class="meta muted"]/small//text()')[0].strip()
+            #IF THE DURATION IS MORE THAN 4 MINUTES THEN IT HAS IN PARTS
+            duration = Datetime.MillisecondsFromString(other_info.split(' - ')[0])
+            date = Datetime.ParseDate(video.xpath('./@data-sort')[0])
+            try:
+                episode = int(RE_EXX.search(seas_ep).group(1))
+            except:
+                episode = None
+            # THIS IS CODE TO HANDLE THOSE THAT NEED PARTS
+            # RIGHT NOW JUST LOOKING FOR MILEY CYRUS UNPLUGGED SINCE THAT IS THE ONLY ONE AND WE KNOW THE NUMBER OF PARTS
+            # SHOULD EVENTUALLY SET IT UP TO FIND PARTS OR CREATE A PLAYLIST
+            if 'miley_cyrus_unplugged' in url:
+                # Skip these for Android Clients
+                if Client.Platform in ('Android'):
+                    continue
+                id_num = RE_VIDID2.search(vid_url).group(1)
+                if 'full' in seas_ep:
+                    parts = '11'
+                else:
+                    parts = '4'
+                new_url = 'http://www.mtv.com/video/play.jhtml?id=%s#parts=%s' %(id_num, parts)
+                vid_url = new_url
 
-        oc.add(EpisodeObject(
-            url = vid_url, 
-            season = season,
-            index = episode,
-            title = vid_title, 
-            thumb = Resource.ContentsOfURLWithFallback(url=thumb, fallback=ICON),
-            originally_available_at = date,
-            duration = duration,
-            summary = desc
-        ))
+            oc.add(EpisodeObject(
+                url = vid_url, 
+                season = season,
+                index = episode,
+                title = vid_title, 
+                thumb = Resource.ContentsOfURLWithFallback(url=thumb, fallback=ICON),
+                originally_available_at = date,
+                duration = duration,
+                summary = desc
+            ))
+        else:
+            oc.add(PopupDirectoryObject(key=Callback(NotAvailable, avail=vid_avail), title='NOT AVAILABLE - ' + vid_title, summary=vid_avail, thumb=thumb))
       
     # Paging code. Each page pulls 30 results
     # There is not a total number of videos to check against to make sure the next page has results
     x = len(video_list)
     if x >= 30:
         start = start + 30
-        oc.add(NextPageObject(key = Callback(ShowNewVideos, title="All Videos", url_key=url_key, season=season, season_id=season_id, start=start), title = L("Next Page ...")))
+        oc.add(NextPageObject(key = Callback(ShowNewVideos, title=title, url=url, season=season, start=start), title = L("Next Page ...")))
     else:
         pass
 
@@ -531,6 +599,7 @@ def VideoPage(url, title, page=1):
         try:
         # This handles those that are video playlists but Woodie Awards are not in VideoObject so they do not get picked up
             # We first check for a "deck" which lists the number of videos in the group and tells us this is a playlist
+            # WE COULD EASILY CREATE A URL AND ADD PARTS HERE
             num_vids = item.xpath('.//p[@class="deck"]/span/text()')[0].strip()
             vid_id = RE_VIDID.search(link).group(1)
             vid_url = MTV_PLAYLIST %vid_id
@@ -643,3 +712,9 @@ def ArchiveSections(title, thumb, url):
         return ObjectContainer(header="Empty", message="There are no special videos to list right now.")
     else:
         return oc
+############################################################################################################################
+# This function creates an error message for entries that are not currrently available
+@route(PREFIX + '/notavailable')
+def NotAvailable(avail):
+  return ObjectContainer(header="Not Available", message='This video is currently unavailable - %s.' %avail)
+
