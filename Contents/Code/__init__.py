@@ -336,7 +336,7 @@ def ShowSeasons(title, thumb, url):
     elif '/shows/' in url and not url.endswith('series.jhtml'):
         local_url = url + 'video/'
         html = HTML.ElementFromURL(local_url, cacheTime = CACHE_1HOUR)
-        new_season_list = html.xpath('//dd/ul/li/a')
+        new_season_list = html.xpath('//span[@id="season-dropdown"]//li/a')
         if len(new_season_list)> 0:
             for section in new_season_list:
                 title = section.xpath('./span[@class="headline-s"]//text()')[0].strip().title()
@@ -388,7 +388,8 @@ def ShowNewSections(title, thumb, url, season, season_id=''):
     url_key = url.split('shows/')[1].replace('/','')
     # THIS PULL IS ALSO USED IN THE NEW SEASON FUNCTION ABOVE
     html = HTML.ElementFromURL(url, cacheTime = CACHE_1HOUR)
-    section_list = html.xpath('//span[contains(@class,"filter") and not(contains(@class,"dropdown"))]/a')
+    #section_list = html.xpath('//span[contains(@class,"filter") and not(contains(@class,"dropdown"))]/a')
+    section_list = html.xpath('//span[@id="video-filters-dropdown"]//li/a')
     for section in section_list:
         id = section.xpath('./@id')[0]
         if 'fullEps' in id:
@@ -492,7 +493,7 @@ def ShowNewVideos(title, url, season, start=0):
             vid_title = video.xpath('.//div[@class="sub-header"]/span//text()')[0].strip()
         except:
             vid_title = video.xpath('.//div[@class="header"]/span[@class="hide"]//text()')[0].strip()
-        thumb = video.xpath('.//img/@data-src')[0]
+        thumb = video.xpath('.//div[@class=" imgDefered"]/@data-src')[0]
         if vid_avail == 'Now':
             vid_type = video.xpath('./@data-filter')[0]
             # Skip full episodes for Android Clients
