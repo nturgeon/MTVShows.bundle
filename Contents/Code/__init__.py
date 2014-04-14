@@ -14,7 +14,7 @@ FULL_EP_TEMP = '%2Fshows%2Fplatform%2Fwatch%2Fmodules%2FepisodePlaylists'
 # The code below is used for the new format when a season id is not given to show full episodes,
 # but there is only one show with this situation so just using the actual page for that one
 NEW_SHOW_ALT_AJAX = 'http://www.mtv.com/include/series/relatedEpisodes?id=%s&seasonId=%s&resultSize=30&template=%2Fshows%2Fplatform%2Fwatch%2Fmodules%2FepisodePlaylists&start='
-BUILD_URL = 'http://www.vh1.com/video/?id='
+BUILD_URL = 'http://www.mtv.com/video/?id='
 
 RE_SEASON  = Regex('Season (\d{1,2})')
 RE_EP = Regex('\| Ep. (\d{1,3})')
